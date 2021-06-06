@@ -1,0 +1,9 @@
+<script>
+ function sendToGas(url, row_i){
+  google.script.run
+    .withSuccessHandler(function(){
+      google.script.host.close();
+    })
+    .process(url, row_i);
+}
+</script>
