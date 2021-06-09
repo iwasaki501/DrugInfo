@@ -90,7 +90,7 @@ function create_sidebar(sidebar_html, row_i) {
   // ui.showModalDialog(html, 'test');
 }
 
-function search(word, row_i) {
+function search2(word, row_i) {
   var url = 'https://nmospr.nikkeibp.co.jp/parts/drugdic/search/cntfrt021201_searchResult?words=' + word;
   var response = UrlFetchApp.fetch(url);
   var content = response.getContentText("UTF-8");
@@ -109,28 +109,82 @@ function search(word, row_i) {
   // create_sidebar(sidebar_html, row_i);
 }
 
+function search(word) {
+  var url = 'https://nmospr.nikkeibp.co.jp/parts/drugdic/search/cntfrt021201_searchResult?words=' + word;
+  var response = UrlFetchApp.fetch(url);
+  var content = response.getContentText("UTF-8");
+  var match = content.match(/\/inc\/all\/drugdic\/prd\/.*<\/a>/g);
+  return match;
+}
+
 function fillValues(sheet, row_i, type_str, side_effect_str, url) {
   sheet.getRange(row_i, 2).setValue(type_str);
   sheet.getRange(row_i, 3).setValue(side_effect_str);
   sheet.getRange(row_i, 4).setValue(url);
 }
 
+function createPullDownList(match) {
+  var pull_down_list = []
+  for (var i = 0; i < match.length; i++) {
+    var html = match[i];
+    var url = 'https://medical.nikkeibp.co.jp/' + html.match(/^.*?html/);
+    var name = html.match(/<\/i>.*?</)[0].replace('</i>', '').replace('<', '');
+    pull_down_list.push(name + ': ' + url);
+  }
+  return pull_down_list;
+}
+
 function run() {
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = spreadsheet.getActiveSheet();
-  Logger.log(sheet.getName());
+  var cell = sheet.getActiveCell();
+  if (cell.getColumn() !== 1 | cell.getValue() === '') return;
 
-  var row_i = 2;
-  while (1) {
-    var drug = sheet.getRange(row_i, 1).getValue();
-    if (drug === '') break;
-    if (sheet.getRange(row_i, 2).getValue() !== '') {
-      row_i++;
-      continue;
+  var rule = cell.getDataValidation();
+  if (rule === null) {
+    var match = search(cell.getValue());
+    if (match === null) {
+      cell.setValue('"' +  cell.getValue() + '" was not found');
+      return;
     }
-    Logger.log(drug);
-    search(drug, row_i);
-    row_i++;
-    Utilities.sleep(1000);
+    var pull_down_list = createPullDownList(match);
+    Logger.log(pull_down_list);
+    var new_rule = SpreadsheetApp.newDataValidation().requireValueInList(pull_down_list).build();
+    cell.setDataValidation(new_rule);
+  } else {
+    var val = cell.getValue();
+    cell.setDataValidation(null);
+    var splitted = val.split(': ');
+    var name = splitted[0];
+    var url = splitted[1];
+    cell.setValue(name);
+    var results = scrape(url);
+    fillValues(sheet, cell.getRow(), results[0], results[1].replace('ショック、アナフィラキシー、呼吸困難、', ''), url);
   }
+
+  // Logger.log(cell.getColumn() + ', ' + cell.getRow() + ', ' + cell.getValue() + ', ' +   cell.getValues());
+  // Logger.log(sheet.getName());
+
+  // var rule = cell.getDataValidation();
+  // if (rule != null) {
+  //   var criteria = rule.getCriteriaType();
+  //   var args = rule.getCriteriaValues();
+  //   Logger.log('The data validation rule is %s %s', criteria, args);
+  // } else {
+  //   Logger.log('The cell does not have a data validation rule.')
+  // }
+
+  // var row_i = 2;
+  // while (1) {
+  //   var drug = sheet.getRange(row_i, 1).getValue();
+  //   if (drug === '') break;
+  //   if (sheet.getRange(row_i, 2).getValue() !== '') {
+  //     row_i++;
+  //     continue;
+  //   }
+  //   Logger.log(drug);
+  //   search(drug, row_i);
+  //   row_i++;
+  //   Utilities.sleep(1000);
+  // }
 }
