@@ -87,6 +87,7 @@ function run() {
     var pull_down_list = createPullDownList(results);
     // If there is only one result, use it
     if (pull_down_list.length === 1) {
+      Utilities.sleep(1000);
       scrapeAndFill(sheet, cell, pull_down_list[0]);
       return;
     }
